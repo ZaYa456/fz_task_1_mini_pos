@@ -10,4 +10,6 @@ The Checkout page page also displays items and allows Filter action, and it allo
 The Bills page displays all bills and allows a filter action.
 
 Setup:
-Just pull the project from Github: https://github.com/ZaYa456/fz_task_1_mini_pos, then run.
+Pull the project from Github: https://github.com/ZaYa456/fz_task_1_mini_pos.
+Run: flutter pub get
+Run: flutter pub run build_runner build --delete-conflicting-outputs.
