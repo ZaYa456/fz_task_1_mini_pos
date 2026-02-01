@@ -14,16 +14,15 @@ const String kSessionBox = 'session_box';
 const String kIsLoggedInKey = 'is_logged_in';
 const String kCurrentUserKey = 'current_user';
 
-
 Future<void> setupHive() async {
   // 1. Initialize Hive
   await Hive.initFlutter();
 
   // 2. Register Adapters
-  Hive.registerAdapter(UserAdapter());          // typeId: 0
-  Hive.registerAdapter(ItemAdapter());          // typeId: 1
-  Hive.registerAdapter(CheckoutAdapter());      // typeId: 2
-  Hive.registerAdapter(CheckoutItemAdapter());  // typeId: 3
+  Hive.registerAdapter(UserAdapter()); // typeId: 0
+  Hive.registerAdapter(ItemAdapter()); // typeId: 1
+  Hive.registerAdapter(CheckoutAdapter()); // typeId: 2
+  Hive.registerAdapter(CheckoutItemAdapter()); // typeId: 3
 
   // 3. Open Boxes
   await Hive.openBox<User>(kUserBox);

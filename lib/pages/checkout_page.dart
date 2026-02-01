@@ -17,13 +17,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
   late Box<Item> _itemBox;
   late Box<Checkout> _checkoutBox;
 
-  final Map<Item, int> _cart = {};
+  Checkout? _activeCheckout;
+
   bool _isProcessing = false;
   bool _stockWarningShown = false;
 
   // Search
   final TextEditingController _searchController = TextEditingController();
   List<Item> _filteredItems = [];
+
+  // ---------------- Lifecycle ----------------
 
   @override
   void initState() {
@@ -32,8 +35,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _checkoutBox = Hive.box<Checkout>(kCheckoutBox);
 
     _filteredItems = _itemBox.values.toList();
-
     _searchController.addListener(_applySearch);
+
+    _loadOrCreateActiveCheckout();
   }
 
   @override
@@ -41,6 +45,29 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _searchController.dispose();
     super.dispose();
   }
+
+  // ---------------- Checkout Handling ----------------
+
+  void _loadOrCreateActiveCheckout() {
+    _activeCheckout = _checkoutBox.values.firstWhere(
+      (c) => c.status == 'open',
+      orElse: () => _createNewCheckout(),
+    );
+  }
+
+  Checkout _createNewCheckout() {
+    final checkout = Checkout()
+      ..id = DateTime.now().millisecondsSinceEpoch
+      ..date = DateTime.now()
+      ..items = []
+      ..totalAmount = 0
+      ..status = 'open';
+
+    _checkoutBox.add(checkout);
+    return checkout;
+  }
+
+  // ---------------- Search ----------------
 
   void _applySearch() {
     final query = _searchController.text.toLowerCase();
@@ -51,13 +78,95 @@ class _CheckoutPageState extends State<CheckoutPage> {
     });
   }
 
+  // ---------------- Cart Helpers ----------------
+
   double get _total {
-    double sum = 0;
-    _cart.forEach((item, qty) => sum += item.price * qty);
-    return sum;
+    if (_activeCheckout == null) return 0;
+    return _activeCheckout!.items.fold(
+      0,
+      (sum, e) => sum + e.priceAtSale * e.quantity,
+    );
   }
 
-  bool get _isCartEmpty => !_cart.values.any((qty) => qty > 0);
+  bool get _isCartEmpty =>
+      _activeCheckout == null || _activeCheckout!.items.isEmpty;
+
+  int _quantityForItem(Item item) {
+    final entry = _activeCheckout!.items.cast<CheckoutItem?>().firstWhere(
+          (e) => e?.itemId == item.key,
+          orElse: () => null,
+        );
+    return entry?.quantity ?? 0;
+  }
+
+  void _addItem(Item item) {
+    final items = _activeCheckout!.items;
+
+    final existing = items.cast<CheckoutItem?>().firstWhere(
+          (e) => e?.itemId == item.key,
+          orElse: () => null,
+        );
+
+    if (item.isStockManaged && _quantityForItem(item) >= item.stockQuantity) {
+      if (!_stockWarningShown) {
+        _stockWarningShown = true;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                "Cannot add more than available stock (${item.stockQuantity})",
+              ),
+              duration: const Duration(seconds: 1),
+            ),
+          ).closed.then((_) => _stockWarningShown = false);
+      }
+      return;
+    }
+
+    if (existing != null) {
+      existing.quantity += 1;
+    } else {
+      items.add(
+        CheckoutItem()
+          ..itemId = item.key as int
+          ..itemName = item.name
+          ..priceAtSale = item.price
+          ..quantity = 1,
+      );
+    }
+
+    _activeCheckout!
+      ..totalAmount = _total
+      ..save();
+
+    setState(() {});
+  }
+
+  void _removeItem(Item item) {
+    final items = _activeCheckout!.items;
+
+    final existing = items.cast<CheckoutItem?>().firstWhere(
+          (e) => e?.itemId == item.key,
+          orElse: () => null,
+        );
+
+    if (existing == null) return;
+
+    if (existing.quantity > 1) {
+      existing.quantity -= 1;
+    } else {
+      items.remove(existing);
+    }
+
+    _activeCheckout!
+      ..totalAmount = _total
+      ..save();
+
+    setState(() {});
+  }
+
+  // ---------------- UI ----------------
 
   @override
   Widget build(BuildContext context) {
@@ -67,13 +176,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
         children: [
           Expanded(child: _buildItemListSection()),
           Container(width: 1, color: Colors.grey[300]),
-          SizedBox(width: 300, child: _buildCartSummary(context)),
+          SizedBox(width: 300, child: _buildCartSummary()),
         ],
       ),
     );
   }
 
-  // ---------------- Items List Section ----------------
   Widget _buildItemListSection() {
     return Column(
       children: [
@@ -104,13 +212,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final item = _filteredItems[index];
-        final qty = _cart[item] ?? 0;
+        final qty = _quantityForItem(item);
 
         return Card(
           child: ListTile(
             title: Text(item.name),
             subtitle: Text(
-              "\$${item.price.toStringAsFixed(2)}${item.isStockManaged ? " - Stock: ${item.stockQuantity}" : ""}",
+              "\$${item.price.toStringAsFixed(2)}"
+              "${item.isStockManaged ? " - Stock: ${item.stockQuantity}" : ""}",
             ),
             trailing: SizedBox(
               width: 120,
@@ -118,35 +227,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.remove),
-                    onPressed: qty > 0
-                        ? () => setState(() => _cart[item] = qty - 1)
-                        : null,
+                    onPressed: qty > 0 ? () => _removeItem(item) : null,
                   ),
                   Text(qty.toString(), style: const TextStyle(fontSize: 16)),
                   IconButton(
                     icon: const Icon(Icons.add),
-                    onPressed: () {
-                      final currentQty = _cart[item] ?? 0;
-
-                      if (item.isStockManaged &&
-                          currentQty >= item.stockQuantity) {
-                        if (!_stockWarningShown) {
-                          _stockWarningShown = true;
-                          ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    "Cannot add more than available stock (${item.stockQuantity})"),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            ).closed.then((_) => _stockWarningShown = false);
-                        }
-                        return;
-                      }
-
-                      setState(() => _cart[item] = currentQty + 1);
-                    },
+                    onPressed: () => _addItem(item),
                   ),
                 ],
               ),
@@ -157,24 +243,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // ---------------- Cart Summary ----------------
-  Widget _buildCartSummary(BuildContext context) {
+  Widget _buildCartSummary() {
+    final items = _activeCheckout?.items ?? [];
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const Text("Cart",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text(
+            "Cart",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           Expanded(
             child: ListView(
-              children: _cart.entries
-                  .where((e) => e.value > 0)
+              children: items
                   .map(
                     (e) => ListTile(
-                      title: Text(e.key.name),
+                      title: Text(e.itemName),
                       trailing: Text(
-                          "${e.value} x \$${e.key.price.toStringAsFixed(2)}"),
+                        "${e.quantity} x \$${e.priceAtSale.toStringAsFixed(2)}",
+                      ),
                     ),
                   )
                   .toList(),
@@ -184,10 +273,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Total:",
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("\$${_total.toStringAsFixed(2)}",
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                "Total:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                "\$${_total.toStringAsFixed(2)}",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -201,8 +294,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.payment),
-              label:
-                  Text(_isProcessing ? "Processing..." : "Complete Checkout"),
+              label: Text(
+                _isProcessing ? "Processing..." : "Complete Checkout",
+              ),
               onPressed:
                   (_isCartEmpty || _isProcessing) ? null : _completeCheckout,
             ),
@@ -213,41 +307,32 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // ---------------- Complete Checkout ----------------
-  void _completeCheckout() async {
+
+  Future<void> _completeCheckout() async {
     if (_isCartEmpty || _isProcessing) return;
 
     setState(() => _isProcessing = true);
 
     try {
-      final now = DateTime.now();
-
-      final checkout = Checkout()
-        ..id = DateTime.now().millisecondsSinceEpoch
-        ..date = now
-        ..totalAmount = _total
-        ..items = _cart.entries
-            .where((e) => e.value > 0)
-            .map((e) => CheckoutItem()
-              ..itemId = e.key.key as int
-              ..itemName = e.key.name
-              ..priceAtSale = e.key.price
-              ..quantity = e.value)
-            .toList();
-
-      await _checkoutBox.add(checkout);
-
       // Deduct stock
-      _cart.forEach((item, qty) {
-        if (item.isStockManaged) {
-          item.stockQuantity -= qty;
-          item.save();
+      for (final entry in _activeCheckout!.items) {
+        final item = _itemBox.get(entry.itemId);
+        if (item != null && item.isStockManaged) {
+          item.stockQuantity -= entry.quantity;
+          await item.save();
         }
-      });
+      }
 
-      setState(() {
-        _cart.clear();
-        _isProcessing = false;
-      });
+      _activeCheckout!
+        ..status = 'completed'
+        ..date = DateTime.now()
+        ..totalAmount = _total;
+
+      await _activeCheckout!.save();
+
+      _activeCheckout = _createNewCheckout();
+
+      setState(() => _isProcessing = false);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -256,7 +341,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
     } catch (e) {
       setState(() => _isProcessing = false);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error during checkout: $e")),

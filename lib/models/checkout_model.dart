@@ -6,7 +6,8 @@ part 'checkout_model.g.dart';
 @HiveType(typeId: 2)
 class Checkout extends HiveObject {
   @HiveField(0)
-  late int id; // You can use DateTime.now().millisecondsSinceEpoch for unique IDs
+  late int
+      id; // You can use DateTime.now().millisecondsSinceEpoch for unique IDs
 
   @HiveField(1)
   late double totalAmount;
@@ -15,5 +16,9 @@ class Checkout extends HiveObject {
   late DateTime date;
 
   @HiveField(3)
-  late List<CheckoutItem> items; // Embed items directly in the checkout for NoSQL
+  late List<CheckoutItem>
+      items; // Embed items directly in the checkout for NoSQL
+
+  @HiveField(4)
+  late String status; // 'open', 'completed', 'cancelled'
 }

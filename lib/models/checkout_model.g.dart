@@ -20,13 +20,14 @@ class CheckoutAdapter extends TypeAdapter<Checkout> {
       ..id = fields[0] as int
       ..totalAmount = fields[1] as double
       ..date = fields[2] as DateTime
-      ..items = (fields[3] as List).cast<CheckoutItem>();
+      ..items = (fields[3] as List).cast<CheckoutItem>()
+      ..status = fields[4] as String;
   }
 
   @override
   void write(BinaryWriter writer, Checkout obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -34,7 +35,9 @@ class CheckoutAdapter extends TypeAdapter<Checkout> {
       ..writeByte(2)
       ..write(obj.date)
       ..writeByte(3)
-      ..write(obj.items);
+      ..write(obj.items)
+      ..writeByte(4)
+      ..write(obj.status);
   }
 
   @override
