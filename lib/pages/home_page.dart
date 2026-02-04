@@ -3,12 +3,12 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../services/auth_service.dart';
 import '../services/hive_setup.dart';
-import '../models/checkout_model.dart';
-import '../models/item_model.dart';
+import '../features/checkout/models/checkout_model.dart';
+import '../features/items/models/item_model.dart';
 
 import 'login_page.dart';
-import 'checkout_page.dart';
-import 'items_page.dart';
+import '../features/checkout/checkout_page.dart';
+import '../features/items/items_page.dart';
 import 'bills_page.dart';
 
 class HomePage extends StatefulWidget {

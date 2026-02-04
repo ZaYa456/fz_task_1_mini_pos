@@ -20,5 +20,5 @@ class Checkout extends HiveObject {
       items; // Embed items directly in the checkout for NoSQL
 
   @HiveField(4)
-  late String status; // 'open', 'completed', 'cancelled'
+  late String status; // 'open', 'completed', 'cancelled', 'held'
 }

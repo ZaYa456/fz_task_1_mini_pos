@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import '../models/checkout_model.dart';
+import '../features/checkout/models/checkout_model.dart';
 import '../services/hive_setup.dart';
 
 enum SortOption { dateDesc, dateAsc, totalDesc, totalAsc }

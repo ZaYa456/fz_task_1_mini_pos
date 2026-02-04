@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -18,8 +19,10 @@ void main() async {
   final bool isLoggedIn = authService.isLoggedIn();
 
   runApp(
-    MainApp(
-      startPage: isLoggedIn ? const HomePage() : const LoginPage(),
+    ProviderScope(
+      child: MainApp(
+        startPage: isLoggedIn ? const HomePage() : const LoginPage(),
+      ),
     ),
   );
 }

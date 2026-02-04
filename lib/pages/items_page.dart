@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../services/hive_setup.dart';
-import '../models/item_model.dart';
+import '../features/items/models/item_model.dart';
 
 class ItemsPage extends StatefulWidget {
   const ItemsPage({super.key});

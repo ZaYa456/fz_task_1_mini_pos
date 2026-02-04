@@ -21,13 +21,15 @@ class ItemAdapter extends TypeAdapter<Item> {
       ..price = fields[1] as double
       ..isStockManaged = fields[2] as bool
       ..registeredDate = fields[3] as DateTime
-      ..stockQuantity = fields[4] as int;
+      ..stockQuantity = fields[4] as int
+      ..barcode = fields[5] as String?
+      ..category = fields[6] as String?;
   }
 
   @override
   void write(BinaryWriter writer, Item obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -37,7 +39,11 @@ class ItemAdapter extends TypeAdapter<Item> {
       ..writeByte(3)
       ..write(obj.registeredDate)
       ..writeByte(4)
-      ..write(obj.stockQuantity);
+      ..write(obj.stockQuantity)
+      ..writeByte(5)
+      ..write(obj.barcode)
+      ..writeByte(6)
+      ..write(obj.category);
   }
 
   @override

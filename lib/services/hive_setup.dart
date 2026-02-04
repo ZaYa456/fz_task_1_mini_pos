@@ -1,8 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/user_model.dart';
-import '../models/item_model.dart';
-import '../models/checkout_model.dart';
-import '../models/checkout_items_model.dart';
+import '../features/items/models/item_model.dart';
+import '../features/checkout/models/checkout_model.dart';
+import '../features/checkout/models/checkout_items_model.dart';
 
 // Box name constants
 const String kUserBox = 'user_box';
