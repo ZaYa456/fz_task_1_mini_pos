@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fz_task_1/features/checkout/services/checkout_service.dart';
 import 'package:fz_task_1/features/checkout/services/transaction_manager.dart';
-import 'package:fz_task_1/features/items/providers/items_provider.dart';
 
 import '../models/checkout_model.dart';
 import '../models/checkout_items_model.dart';
@@ -299,20 +298,6 @@ class CheckoutNotifier extends StateNotifier<CartState> {
     }
   }
 
-  /// Auto-fix stock issues by adjusting quantities or removing items
-  void autoFixStockIssues() {
-    if (state.isEmpty) return; // No items to fix
-    final fixedCheckout =
-        _checkoutService.autoFixStockIssues(state.activeCheckout);
-
-    state = CartState(
-      activeCheckout: fixedCheckout,
-      heldCheckouts: state.heldCheckouts,
-      selectedItemIndex: null,
-      isProcessing: state.isProcessing,
-    );
-  }
-
   /// Reload held transactions
   void reloadHeldTransactions() {
     state = CartState(
@@ -334,14 +319,11 @@ final checkoutProvider =
     transactionManager,
   );
 
-  // 🔥 Listen to inventory changes
-  ref.listen(itemsProvider, (previous, next) {
-    notifier.autoFixStockIssues();
-  });
+  // ❌ REMOVED: Auto-fix listener - we now rely on visual warnings instead
+  // Items stay in cart and show warnings until cashier manually removes them
 
   return notifier;
 });
-
 
 /// Convenient computed providers
 final cartItemCountProvider = Provider<int>((ref) {

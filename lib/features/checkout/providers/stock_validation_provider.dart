@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/features/items/providers/items_provider.dart';
 
 import '../../items/models/item_model.dart';
 import '../models/checkout_items_model.dart';
@@ -27,9 +28,13 @@ enum StockIssueType {
 }
 
 /// Provider that checks for stock issues in the current cart
+/// 🔥 Now watches BOTH cart changes AND items provider changes
 final cartStockIssuesProvider = Provider<List<StockIssue>>((ref) {
   final cartState = ref.watch(checkoutProvider);
   final itemBox = ref.watch(itemBoxProvider);
+
+  // 🔥 KEY FIX: Watch the itemsProvider so we re-evaluate when items change
+  ref.watch(itemsProvider);
 
   final issues = <StockIssue>[];
 
@@ -80,3 +85,6 @@ final cartStockIssuesProvider = Provider<List<StockIssue>>((ref) {
 final hasStockIssuesProvider = Provider<bool>((ref) {
   return ref.watch(cartStockIssuesProvider).isNotEmpty;
 });
+
+/// State provider for tracking recently removed items (for notifications)
+final recentlyRemovedItemsProvider = StateProvider<List<String>>((ref) => []);

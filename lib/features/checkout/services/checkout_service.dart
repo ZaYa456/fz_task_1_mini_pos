@@ -74,11 +74,22 @@ class CheckoutService {
   }) {
     final item = _itemBox.get(checkoutItem.itemId);
 
-    if (item == null) return false;
-
-    // Check stock if managed
-    if (item.isStockManaged && newQuantity > item.stockQuantity) {
+    if (item == null) {
+      // Item deleted - allow quantity change (cashier can reduce to 0 to remove)
+      if (newQuantity <= 0) {
+        checkout.items.remove(checkoutItem);
+        _recalculateTotal(checkout);
+        return true;
+      }
+      // Don't allow increasing quantity of deleted items
       return false;
+    }
+
+    // Check stock if managed and increasing quantity
+    if (item.isStockManaged && newQuantity > checkoutItem.quantity) {
+      if (newQuantity > item.stockQuantity) {
+        return false;
+      }
     }
 
     if (newQuantity <= 0) {
@@ -121,15 +132,35 @@ class CheckoutService {
       throw Exception('Invalid payment: insufficient amount');
     }
 
+    // Validate all items before processing
+    for (final entry in checkout.items) {
+      final item = _itemBox.get(entry.itemId);
+
+      if (item == null) {
+        throw Exception(
+          'Cannot complete checkout: ${entry.itemName} no longer exists. Please remove it from cart.',
+        );
+      }
+
+      if (item.isStockManaged) {
+        if (item.stockQuantity <= 0) {
+          throw Exception(
+            'Cannot complete checkout: ${item.name} is out of stock. Please remove it from cart.',
+          );
+        }
+
+        if (item.stockQuantity < entry.quantity) {
+          throw Exception(
+            'Cannot complete checkout: Insufficient stock for ${item.name}. Available: ${item.stockQuantity}, Required: ${entry.quantity}',
+          );
+        }
+      }
+    }
+
     // Update stock for each item
     for (final entry in checkout.items) {
       final item = _itemBox.get(entry.itemId);
       if (item != null && item.isStockManaged) {
-        if (item.stockQuantity < entry.quantity) {
-          throw Exception(
-            'Insufficient stock for ${item.name}. Available: ${item.stockQuantity}, Required: ${entry.quantity}',
-          );
-        }
         item.stockQuantity -= entry.quantity;
         await item.save();
       }
@@ -170,53 +201,5 @@ class CheckoutService {
   double calculateGrandTotal(Checkout checkout, {double taxRate = 0.0}) {
     return calculateSubtotal(checkout) +
         calculateTax(checkout, taxRate: taxRate);
-  }
-
-  /// Auto-fix stock issues by adjusting quantities or removing items
-  /// Returns a new Checkout instance with fixed items
-  Checkout autoFixStockIssues(Checkout checkout) {
-    final itemsToKeep = <CheckoutItem>[];
-
-    for (final checkoutItem in checkout.items) {
-      final item = _itemBox.get(checkoutItem.itemId);
-
-      // Item deleted - skip (remove from cart)
-      if (item == null) {
-        continue;
-      }
-
-      // Not stock managed - keep as is
-      if (!item.isStockManaged) {
-        itemsToKeep.add(checkoutItem);
-        continue;
-      }
-
-      // Out of stock - skip (remove from cart)
-      if (item.stockQuantity <= 0) {
-        continue;
-      }
-
-      // Insufficient stock - adjust quantity
-      if (checkoutItem.quantity > item.stockQuantity) {
-        // Create new CheckoutItem with adjusted quantity
-        final adjustedItem = CheckoutItem()
-          ..itemId = checkoutItem.itemId
-          ..itemName = checkoutItem.itemName
-          ..priceAtSale = checkoutItem.priceAtSale
-          ..quantity = item.stockQuantity;
-        itemsToKeep.add(adjustedItem);
-      } else {
-        // Stock is sufficient - keep as is
-        itemsToKeep.add(checkoutItem);
-      }
-    }
-
-    // Update checkout with fixed items
-    checkout.items.clear();
-    checkout.items.addAll(itemsToKeep);
-
-    _recalculateTotal(checkout);
-
-    return checkout;
   }
 }

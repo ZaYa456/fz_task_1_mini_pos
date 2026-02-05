@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/features/checkout/providers/stock_validation_provider.dart';
 
 import '../../providers/checkout_provider.dart';
 import 'cart_item_row.dart';
@@ -20,6 +21,7 @@ class CartSummaryPanel extends ConsumerWidget {
     final cartState = ref.watch(checkoutProvider);
     final items = cartState.activeCheckout.items;
     final selectedIndex = cartState.selectedItemIndex;
+    final hasStockIssues = ref.watch(hasStockIssuesProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -30,6 +32,9 @@ class CartSummaryPanel extends ConsumerWidget {
         children: [
           // Header
           _CartHeader(itemCount: items.length),
+
+          // Stock issues banner
+          if (hasStockIssues) _StockIssuesBanner(),
 
           // Column headers
           _ColumnHeaders(),
@@ -56,6 +61,40 @@ class CartSummaryPanel extends ConsumerWidget {
           CartTotalSection(
             onHold: onHold,
             onPay: onPay,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockIssuesBanner extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final issues = ref.watch(cartStockIssuesProvider);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        border: Border(
+          bottom: BorderSide(color: Colors.red[200]!, width: 2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.red[700], size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${issues.length} ${issues.length == 1 ? 'item has' : 'items have'} stock issues. Remove or adjust before checkout.',
+              style: TextStyle(
+                color: Colors.red[900],
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
           ),
         ],
       ),

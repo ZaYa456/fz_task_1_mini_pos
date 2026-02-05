@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/features/checkout/widgets/keyboard/checkout_actions.dart';
+import 'package:fz_task_1/features/checkout/widgets/keyboard/checkout_shortcuts.dart';
 
 import 'providers/checkout_provider.dart';
 import 'providers/service_providers.dart';
-import 'services/keyboard_shortcuts_handler.dart';
 import 'widgets/item_grid/item_grid_panel.dart';
 import 'widgets/cart_summary/cart_summary_panel.dart';
 import 'widgets/dialogs/payment_dialog.dart';
@@ -21,14 +21,11 @@ class CheckoutPage extends ConsumerStatefulWidget {
 
 class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   late final FocusNode _searchFocusNode;
-  late final FocusNode _keyboardFocusNode;
-  late KeyboardShortcutsHandler _shortcutsHandler;
 
   @override
   void initState() {
     super.initState();
     _searchFocusNode = FocusNode();
-    _keyboardFocusNode = FocusNode();
 
     // Auto-focus search for barcode scanner
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -39,103 +36,104 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   @override
   void dispose() {
     _searchFocusNode.dispose();
-    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Initialize shortcuts handler with current ref
-    _shortcutsHandler = KeyboardShortcutsHandler(
-      ref: ref,
-      onShowPaymentDialog: _showPaymentDialog,
-      onShowHeldTransactions: _showHeldTransactionsDialog,
-      onClearCart: _showClearCartDialog,
-    );
-
     final heldTransactionCount = ref.watch(heldTransactionCountProvider);
 
-    return KeyboardListener(
-      focusNode: _keyboardFocusNode..requestFocus(),
-      onKeyEvent: _shortcutsHandler.handleKeyEvent,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text("Checkout"),
-          actions: [
-            // Held transactions indicator
-            if (heldTransactionCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Center(
-                  child: Badge(
-                    label: Text(heldTransactionCount.toString()),
-                    child: IconButton(
-                      icon: const Icon(Icons.pause_circle_outline),
-                      onPressed: _showHeldTransactionsDialog,
-                      tooltip: "Held Transactions (F2)",
+    return Focus(
+      autofocus: true,
+      child: Shortcuts(
+        shortcuts: checkoutShortcuts,
+        child: Actions(
+          actions: buildCheckoutActions(
+            ref: ref,
+            onShowPaymentDialog: _showPaymentDialog,
+            onShowHeldTransactions: _showHeldTransactionsDialog,
+            onClearCart: _showClearCartDialog,
+          ),
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text("Checkout"),
+              actions: [
+                // Held transactions indicator
+                if (heldTransactionCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Center(
+                      child: Badge(
+                        label: Text(heldTransactionCount.toString()),
+                        child: IconButton(
+                          icon: const Icon(Icons.pause_circle_outline),
+                          onPressed: _showHeldTransactionsDialog,
+                          tooltip: "Held Transactions (F2)",
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
 
-            // Quick actions menu
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: _handleMenuAction,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'hold',
-                  child: Row(
-                    children: [
-                      Icon(Icons.pause),
-                      SizedBox(width: 8),
-                      Text("Hold (F1)"),
-                    ],
-                  ),
+                // Quick actions menu
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: _handleMenuAction,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'hold',
+                      child: Row(
+                        children: [
+                          Icon(Icons.pause),
+                          SizedBox(width: 8),
+                          Text("Hold (F1)"),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'recall',
+                      child: Row(
+                        children: [
+                          Icon(Icons.history),
+                          SizedBox(width: 8),
+                          Text("Recall (F2)"),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'clear',
+                      child: Row(
+                        children: [
+                          Icon(Icons.clear_all, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text("Clear Cart (F9)"),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                PopupMenuItem(
-                  value: 'recall',
-                  child: Row(
-                    children: [
-                      Icon(Icons.history),
-                      SizedBox(width: 8),
-                      Text("Recall (F2)"),
-                    ],
-                  ),
+              ],
+            ),
+            body: Row(
+              children: [
+                // Item grid panel
+                Expanded(
+                  child: ItemGridPanel(searchFocusNode: _searchFocusNode),
                 ),
-                PopupMenuItem(
-                  value: 'clear',
-                  child: Row(
-                    children: [
-                      Icon(Icons.clear_all, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text("Clear Cart (F9)"),
-                    ],
+
+                // Divider
+                Container(width: 1, color: Colors.grey[300]),
+
+                // Cart summary panel
+                SizedBox(
+                  width: 450,
+                  child: CartSummaryPanel(
+                    onHold: _holdTransaction,
+                    onPay: _showPaymentDialog,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
-        body: Row(
-          children: [
-            // Item grid panel
-            Expanded(
-              child: ItemGridPanel(searchFocusNode: _searchFocusNode),
-            ),
-
-            // Divider
-            Container(width: 1, color: Colors.grey[300]),
-
-            // Cart summary panel
-            SizedBox(
-              width: 450,
-              child: CartSummaryPanel(
-                onHold: _holdTransaction,
-                onPay: _showPaymentDialog,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/features/items/models/item_model.dart';
 import 'package:fz_task_1/features/items/providers/items_provider.dart';
 import 'package:fz_task_1/features/items/widgets/item_dialog.dart';
+import 'package:fz_task_1/features/items/widgets/item_delete_confirmation_dialog.dart';
 
 class ItemsPage extends ConsumerWidget {
   const ItemsPage({super.key});
@@ -127,7 +129,11 @@ class ItemsPage extends ConsumerWidget {
                               IconButton(
                                 tooltip: 'Delete',
                                 icon: const Icon(Icons.delete),
-                                onPressed: () => notifier.deleteItem(item),
+                                onPressed: () => _showDeleteConfirmation(
+                                  context,
+                                  item,
+                                  notifier,
+                                ),
                               ),
                             ],
                           ),
@@ -139,5 +145,51 @@ class ItemsPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showDeleteConfirmation(
+    BuildContext context,
+    Item item,
+    ItemsNotifier notifier,
+  ) async {
+    // Check if item is used in any checkout
+    final usage = notifier.checkItemUsage(item);
+
+    final confirmed = await ItemDeleteConfirmationDialog.show(
+      context,
+      item,
+      usage,
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await notifier.deleteItem(item);
+
+        if (context.mounted) {
+          final isUsed = usage['isUsed'] as bool;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isUsed
+                    ? '"${item.name}" deleted and removed from all carts'
+                    : '"${item.name}" deleted successfully',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting item: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
   }
 }

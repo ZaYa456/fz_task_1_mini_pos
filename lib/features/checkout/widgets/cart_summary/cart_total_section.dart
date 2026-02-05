@@ -40,35 +40,6 @@ class CartTotalSection extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Stock issues warning
-          if (hasStockIssues) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red[300]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.red[700], size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${stockIssues.length} item${stockIssues.length == 1 ? '' : 's'} with stock issues',
-                      style: TextStyle(
-                        color: Colors.red[900],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
           // Subtotal
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

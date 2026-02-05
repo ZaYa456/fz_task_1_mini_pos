@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fz_task_1/features/items/models/item_model.dart';
 import 'package:fz_task_1/features/items/services/item_service.dart';
 import 'package:fz_task_1/services/hive_setup.dart';
+import 'package:fz_task_1/features/checkout/models/checkout_model.dart';
 import 'package:hive/hive.dart';
 
 class ItemsState {
@@ -41,12 +42,9 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
     });
   }
 
-  // inside ItemsNotifier
   void _reload() {
     final newItems = _service.getAll();
 
-    // Only update if the list length or content actually changed
-    // This prevents Riverpod from notifying listeners if nothing is new
     if (state.items.length == newItems.length) {
       // Optional: Add deeper equality check if needed
       // return;
@@ -71,13 +69,10 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
     for (var item in items) {
       if (item.stockQuantity < 0) {
         item.stockQuantity = 0;
-        item.save(); // This triggers the watch() stream!
+        item.save();
         changed = true;
       }
     }
-
-    // Note: We do NOT call _reload() here.
-    // Hive's watch() will catch the item.save() and trigger _reload() once.
   }
 
   Future<void> addItem(Item item) async {
@@ -88,7 +83,17 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
     await _service.update(item);
   }
 
+  /// Check if item can be deleted (returns usage info)
+  Map<String, dynamic> checkItemUsage(Item item) {
+    return _service.getItemUsage(item);
+  }
+
+  /// Delete item and remove from all checkouts
   Future<void> deleteItem(Item item) async {
+    // First remove from all checkouts
+    await _service.removeItemFromAllCheckouts(item);
+
+    // Then delete the item
     await _service.delete(item);
   }
 
@@ -111,7 +116,10 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
 }
 
 final itemServiceProvider = Provider<ItemService>((ref) {
-  return ItemService(Hive.box<Item>(kItemBox));
+  return ItemService(
+    Hive.box<Item>(kItemBox),
+    Hive.box<Checkout>(kCheckoutBox),
+  );
 });
 
 final itemsProvider = StateNotifierProvider<ItemsNotifier, ItemsState>((ref) {
