@@ -21,28 +21,38 @@ class ItemGridPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       children: [
-        // Search bar
+        // ---------------- Search Bar ----------------
         Padding(
           padding: const EdgeInsets.all(16),
           child: CheckoutSearchBar(
             focusNode: searchFocusNode,
-            onSubmitted: () => searchFocusNode.requestFocus(),
+
+            // IMPORTANT:
+            // Do NOT re-request focus here.
+            // Let the root FocusNode own the keyboard.
+            onSubmitted: () {
+              // Intentionally empty
+            },
           ),
         ),
 
-        // Category filters
+        // ---------------- Category Filters ----------------
         const CategoryFilterBar(),
 
         const Divider(height: 1),
 
-        // Items grid
-        Expanded(child: _ItemGrid()),
+        // ---------------- Items Grid ----------------
+        const Expanded(
+          child: _ItemGrid(),
+        ),
       ],
     );
   }
 }
 
 class _ItemGrid extends ConsumerStatefulWidget {
+  const _ItemGrid();
+
   @override
   ConsumerState<_ItemGrid> createState() => _ItemGridState();
 }
@@ -54,6 +64,7 @@ class _ItemGridState extends ConsumerState<_ItemGrid> {
     if (_stockWarningShown) return;
 
     _stockWarningShown = true;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -62,14 +73,17 @@ class _ItemGridState extends ConsumerState<_ItemGrid> {
           duration: const Duration(seconds: 2),
           backgroundColor: Colors.orange,
         ),
-      ).closed.then((_) => _stockWarningShown = false);
+      ).closed.then((_) {
+        if (mounted) {
+          _stockWarningShown = false;
+        }
+      });
   }
 
   void _handleAddItem(Item item) {
     final checkoutService = ref.read(checkoutServiceProvider);
     final cartState = ref.read(checkoutProvider);
 
-    // Check if we can add
     final currentQty = checkoutService.getItemQuantityInCheckout(
       checkout: cartState.activeCheckout,
       item: item,
@@ -77,17 +91,16 @@ class _ItemGridState extends ConsumerState<_ItemGrid> {
 
     if (item.isStockManaged && currentQty >= item.stockQuantity) {
       _showStockWarning(
-        "Cannot add more than available stock (${item.stockQuantity})",
+        'Cannot add more than available stock (${item.stockQuantity})',
       );
       return;
     }
 
-    // Try to add
     final success = ref.read(checkoutProvider.notifier).addItem(item);
 
     if (!success) {
       _showStockWarning(
-        "Only ${item.stockQuantity} in stock for ${item.name}",
+        'Only ${item.stockQuantity} in stock for ${item.name}',
       );
     }
   }
@@ -97,7 +110,9 @@ class _ItemGridState extends ConsumerState<_ItemGrid> {
     final filteredItems = ref.watch(filteredItemsProvider);
 
     if (filteredItems.isEmpty) {
-      return const Center(child: Text("No items found."));
+      return const Center(
+        child: Text('No items found.'),
+      );
     }
 
     return GridView.builder(
@@ -111,6 +126,7 @@ class _ItemGridState extends ConsumerState<_ItemGrid> {
       itemCount: filteredItems.length,
       itemBuilder: (context, index) {
         final item = filteredItems[index];
+
         return ItemCard(
           item: item,
           onTap: () => _handleAddItem(item),

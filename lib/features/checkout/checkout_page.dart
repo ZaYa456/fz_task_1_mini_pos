@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fz_task_1/features/checkout/widgets/keyboard/checkout_actions.dart';
-import 'package:fz_task_1/features/checkout/widgets/keyboard/checkout_shortcuts.dart';
 
 import 'providers/checkout_provider.dart';
 import 'providers/service_providers.dart';
+
 import 'widgets/item_grid/item_grid_panel.dart';
 import 'widgets/cart_summary/cart_summary_panel.dart';
 import 'widgets/dialogs/payment_dialog.dart';
 import 'widgets/dialogs/held_transactions_dialog.dart';
 import 'widgets/dialogs/receipt_preview_dialog.dart';
 import 'widgets/dialogs/clear_cart_dialog.dart';
+
+import 'widgets/keyboard/checkout_actions.dart';
+import 'widgets/keyboard/checkout_shortcuts.dart';
 
 class CheckoutPage extends ConsumerStatefulWidget {
   const CheckoutPage({super.key});
@@ -20,21 +22,28 @@ class CheckoutPage extends ConsumerStatefulWidget {
 }
 
 class _CheckoutPageState extends ConsumerState<CheckoutPage> {
+  late final FocusNode _rootFocusNode;
   late final FocusNode _searchFocusNode;
+  late final FocusScopeNode _checkoutScopeNode;
 
   @override
   void initState() {
     super.initState();
-    _searchFocusNode = FocusNode();
 
-    // Auto-focus search for barcode scanner
+    _checkoutScopeNode = FocusScopeNode(debugLabel: 'CheckoutScope');
+    _rootFocusNode = FocusNode(debugLabel: 'CheckoutRoot');
+    _searchFocusNode = FocusNode(debugLabel: 'CheckoutSearch');
+
+    // Root focus must own keyboard events on desktop
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _searchFocusNode.requestFocus();
+      _checkoutScopeNode.requestFocus(_rootFocusNode);
     });
   }
 
   @override
   void dispose() {
+    _checkoutScopeNode.dispose();
+    _rootFocusNode.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
@@ -43,8 +52,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   Widget build(BuildContext context) {
     final heldTransactionCount = ref.watch(heldTransactionCountProvider);
 
-    return Focus(
+    return FocusScope(
+      node: _checkoutScopeNode,
       autofocus: true,
+      // 1. SHORTCUTS & ACTIONS MUST BE AT THE TOP (Ancestors of Focus)
       child: Shortcuts(
         shortcuts: checkoutShortcuts,
         child: Actions(
@@ -54,84 +65,96 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             onShowHeldTransactions: _showHeldTransactionsDialog,
             onClearCart: _showClearCartDialog,
           ),
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text("Checkout"),
-              actions: [
-                // Held transactions indicator
-                if (heldTransactionCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Center(
-                      child: Badge(
-                        label: Text(heldTransactionCount.toString()),
-                        child: IconButton(
-                          icon: const Icon(Icons.pause_circle_outline),
-                          onPressed: _showHeldTransactionsDialog,
-                          tooltip: "Held Transactions (F2)",
+          // 2. FOCUS WIDGET IS NOW A CHILD
+          child: Focus(
+            focusNode: _rootFocusNode,
+            autofocus: true,
+            // 3. GESTURE DETECTOR TRAPS CLICKS ON EMPTY SPACE
+            child: GestureDetector(
+              onTap: () {
+                // Ensure clicking empty background reclaims focus
+                if (!_rootFocusNode.hasFocus && !_searchFocusNode.hasFocus) {
+                  _rootFocusNode.requestFocus();
+                }
+              },
+              // Important: HitTestBehavior.translucent or HitTestBehavior.opaque catches clicks on empty rows/columns
+              // without it, clicks on empty space would fall through to underlying widgets and not trigger focus changes
+              // This is crucial for desktop where users expect to click anywhere to focus the checkout
+              behavior: HitTestBehavior.translucent,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: const Text('Checkout'),
+                  actions: [
+                    if (heldTransactionCount > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Center(
+                          child: Badge(
+                            label: Text(heldTransactionCount.toString()),
+                            child: IconButton(
+                              icon: const Icon(Icons.pause_circle_outline),
+                              tooltip: 'Held Transactions (F2)',
+                              onPressed: _showHeldTransactionsDialog,
+                            ),
+                          ),
                         ),
                       ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: _handleMenuAction,
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'hold',
+                          child: Row(
+                            children: [
+                              Icon(Icons.pause),
+                              SizedBox(width: 8),
+                              Text('Hold (F1)'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'recall',
+                          child: Row(
+                            children: [
+                              Icon(Icons.history),
+                              SizedBox(width: 8),
+                              Text('Recall (F2)'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'clear',
+                          child: Row(
+                            children: [
+                              Icon(Icons.clear_all, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Clear Cart (F9)'),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-
-                // Quick actions menu
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: _handleMenuAction,
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'hold',
-                      child: Row(
-                        children: [
-                          Icon(Icons.pause),
-                          SizedBox(width: 8),
-                          Text("Hold (F1)"),
-                        ],
+                  ],
+                ),
+                body: Row(
+                  children: [
+                    Expanded(
+                      child: ItemGridPanel(
+                        searchFocusNode: _searchFocusNode,
                       ),
                     ),
-                    PopupMenuItem(
-                      value: 'recall',
-                      child: Row(
-                        children: [
-                          Icon(Icons.history),
-                          SizedBox(width: 8),
-                          Text("Recall (F2)"),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'clear',
-                      child: Row(
-                        children: [
-                          Icon(Icons.clear_all, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text("Clear Cart (F9)"),
-                        ],
+                    Container(width: 1, color: Colors.grey[300]),
+                    SizedBox(
+                      width: 450,
+                      child: CartSummaryPanel(
+                        onHold: _holdTransaction,
+                        onPay: _showPaymentDialog,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            body: Row(
-              children: [
-                // Item grid panel
-                Expanded(
-                  child: ItemGridPanel(searchFocusNode: _searchFocusNode),
-                ),
-
-                // Divider
-                Container(width: 1, color: Colors.grey[300]),
-
-                // Cart summary panel
-                SizedBox(
-                  width: 450,
-                  child: CartSummaryPanel(
-                    onHold: _holdTransaction,
-                    onPay: _showPaymentDialog,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -165,12 +188,12 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("Transaction held"),
+        content: Text('Transaction held'),
         duration: Duration(seconds: 1),
       ),
     );
 
-    _searchFocusNode.requestFocus();
+    _rootFocusNode.requestFocus();
   }
 
   void _showHeldTransactionsDialog() {
@@ -178,7 +201,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     if (cartState.heldCheckouts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No held transactions")),
+        const SnackBar(content: Text('No held transactions')),
       );
       return;
     }
@@ -190,17 +213,17 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         ref.read(checkoutProvider.notifier).recallTransaction(index);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Transaction recalled"),
+            content: Text('Transaction recalled'),
             duration: Duration(seconds: 1),
           ),
         );
-        _searchFocusNode.requestFocus();
+        _rootFocusNode.requestFocus();
       },
       onDelete: (index) {
         ref.read(checkoutProvider.notifier).deleteHeldTransaction(index);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Transaction deleted"),
+            content: Text('Transaction deleted'),
             duration: Duration(seconds: 1),
           ),
         );
@@ -215,7 +238,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     final confirmed = await ClearCartDialog.show(context);
     if (confirmed && mounted) {
       ref.read(checkoutProvider.notifier).clearCart();
-      _searchFocusNode.requestFocus();
+      _rootFocusNode.requestFocus();
     }
   }
 
@@ -233,23 +256,19 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     if (paymentInfo != null && mounted) {
       await _processPayment(paymentInfo);
     } else {
-      // Payment cancelled, refocus search
-      _searchFocusNode.requestFocus();
+      _rootFocusNode.requestFocus();
     }
   }
 
   Future<void> _processPayment(paymentInfo) async {
     final checkoutNotifier = ref.read(checkoutProvider.notifier);
     final receiptService = ref.read(receiptServiceProvider);
-
-    // Store the completed checkout for receipt
     final completedCheckout = ref.read(checkoutProvider).activeCheckout;
 
     try {
       await checkoutNotifier.completeCheckout(paymentInfo);
 
       if (mounted) {
-        // Show success and offer receipt
         await ReceiptPreviewDialog.showPaymentSuccess(
           context,
           checkout: completedCheckout,
@@ -257,19 +276,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           receiptService: receiptService,
         );
 
-        // Refocus search for next transaction
-        _searchFocusNode.requestFocus();
+        _rootFocusNode.requestFocus();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error during checkout: $e"),
+            content: Text('Error during checkout: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
         );
-        _searchFocusNode.requestFocus();
+        _rootFocusNode.requestFocus();
       }
     }
   }
