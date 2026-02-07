@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers/checkout_provider.dart';
@@ -52,10 +53,16 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
   Widget build(BuildContext context) {
     final heldTransactionCount = ref.watch(heldTransactionCountProvider);
 
+    // NEW: Listen to pending quantity to show a badge/FAB
+    final pendingQty =
+        ref.watch(checkoutProvider.select((s) => s.pendingQuantity));
+
+    final isDefaultQty =
+        ref.watch(checkoutProvider.select((s) => s.isDefaultQuantity));
+
     return FocusScope(
       node: _checkoutScopeNode,
       autofocus: true,
-      // 1. SHORTCUTS & ACTIONS MUST BE AT THE TOP (Ancestors of Focus)
       child: Shortcuts(
         shortcuts: checkoutShortcuts,
         child: Actions(
@@ -65,11 +72,46 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             onShowHeldTransactions: _showHeldTransactionsDialog,
             onClearCart: _showClearCartDialog,
           ),
-          // 2. FOCUS WIDGET IS NOW A CHILD
+          // NEW: Focus widget intercepts keys for quantity management
           child: Focus(
             focusNode: _rootFocusNode,
             autofocus: true,
-            // 3. GESTURE DETECTOR TRAPS CLICKS ON EMPTY SPACE
+            onKeyEvent: (node, event) {
+              // 1. If Search has focus, let the text field handle the input
+              if (_searchFocusNode.hasFocus) {
+                return KeyEventResult.ignored;
+              }
+
+              // 2. Handle Key Down events
+              if (event is KeyDownEvent) {
+                final key = event.logicalKey;
+
+                // Handle Numbers (0-9) for quantity input
+                if (RegExp(r'^[0-9]$').hasMatch(key.keyLabel)) {
+                  final digit = int.parse(key.keyLabel);
+                  ref
+                      .read(checkoutProvider.notifier)
+                      .appendPendingQuantity(digit);
+                  return KeyEventResult.handled;
+                }
+
+                // Backspace → remove last digit
+                if (key == LogicalKeyboardKey.backspace) {
+                  ref
+                      .read(checkoutProvider.notifier)
+                      .backspacePendingQuantity();
+                  return KeyEventResult.handled;
+                }
+
+                // Handle Escape (Reset quantity)
+                if (key == LogicalKeyboardKey.escape) {
+                  ref.read(checkoutProvider.notifier).resetPendingQuantity();
+                  return KeyEventResult.handled;
+                }
+              }
+
+              return KeyEventResult.ignored;
+            },
             child: GestureDetector(
               onTap: () {
                 // Ensure clicking empty background reclaims focus
@@ -77,9 +119,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                   _rootFocusNode.requestFocus();
                 }
               },
-              // Important: HitTestBehavior.translucent or HitTestBehavior.opaque catches clicks on empty rows/columns
-              // without it, clicks on empty space would fall through to underlying widgets and not trigger focus changes
-              // This is crucial for desktop where users expect to click anywhere to focus the checkout
               behavior: HitTestBehavior.translucent,
               child: Scaffold(
                 appBar: AppBar(
@@ -137,6 +176,28 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                     ),
                   ],
                 ),
+                // NEW: Multiplier Badge UI
+                floatingActionButtonLocation:
+                    FloatingActionButtonLocation.centerFloat,
+                floatingActionButton: (!isDefaultQty)
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                            color: Colors.orangeAccent,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: const [
+                              BoxShadow(blurRadius: 10, color: Colors.black26)
+                            ]),
+                        child: Text(
+                          "Next Item Qty: $pendingQty (Press Esc to clear)",
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                      )
+                    : null,
                 body: Row(
                   children: [
                     Expanded(

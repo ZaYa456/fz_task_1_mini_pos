@@ -37,7 +37,11 @@ class ItemCard extends ConsumerWidget {
               ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
               : null,
       child: InkWell(
-        onTap: isOutOfStock ? null : onTap,
+        onTap: isOutOfStock
+            ? null
+            : () {
+                onTap?.call(); // ONLY notify parent to add item to cart, do NOT modify cart state here
+              },
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(

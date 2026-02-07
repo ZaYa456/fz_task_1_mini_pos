@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../items/models/item_model.dart';
 import 'service_providers.dart';
 import 'checkout_provider.dart';
 import 'search_provider.dart';
@@ -23,8 +22,8 @@ class BarcodeHandler {
     );
 
     if (item != null) {
-      // Add item to cart
-      ref.read(checkoutProvider.notifier).addItem(item);
+      // Add item to cart (quantity: null tells it to use pendingQuantity)
+      ref.read(checkoutProvider.notifier).addItem(item, quantity: null);
 
       // Clear search
       ref.read(searchNotifierProvider.notifier).clearQuery();

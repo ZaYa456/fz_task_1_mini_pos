@@ -20,26 +20,88 @@ class CheckoutNotifier extends StateNotifier<CartState> {
           heldCheckouts: _transactionManager.loadHeldCheckouts(),
         ));
 
+  /// NEW: Handle number key presses (e.g. typing "3" then "0" becomes 30)
+  void appendPendingQuantity(int digit) {
+    if (digit < 0 || digit > 9) return;
+
+    int newQty;
+
+    if (state.isDefaultQuantity) {
+      // First digit typed - replace the default
+      newQty = digit;
+    } else {
+      // Subsequent digits - append
+      newQty = (state.pendingQuantity * 10) + digit;
+    }
+    // Safety cap (optional, e.g. max 999)
+    if (newQty > 999) newQty = 999;
+    if (newQty == 0) newQty = 1; // Prevent 0 quantity
+
+    state = state.copyWith(pendingQuantity: newQty, isDefaultQuantity: false);
+  }
+
+  /// NEW: Reset pending quantity to 1 (e.g. on Escape key)
+  void resetPendingQuantity() {
+    state = state.copyWith(pendingQuantity: 1, isDefaultQuantity: true);
+  }
+
+  void backspacePendingQuantity() {
+    final current = state.pendingQuantity;
+
+    // Nothing to delete
+    if (current <= 1) {
+      state = state.copyWith(pendingQuantity: 1, isDefaultQuantity: true);
+      return;
+    }
+
+    final asString = current.toString();
+
+    if (asString.length <= 1) {
+      state = state.copyWith(pendingQuantity: 1, isDefaultQuantity: true);
+      return;
+    }
+
+    final newQty = int.parse(asString.substring(0, asString.length - 1));
+
+    state = state.copyWith(
+      pendingQuantity: newQty > 0 ? newQty : 1,
+    );
+  }
+
   /// Add item to cart
-  bool addItem(Item item, {int quantity = 1}) {
+  /// If quantity is NOT passed explicitly, use state.pendingQuantity
+  bool addItem(Item item, {int? quantity}) {
+    // 1. Determine effective quantity
+    // If 'quantity' is passed (from a dialog?), use it.
+    // If 'quantity' is null (from a tap?), use the pendingQuantity.
+    // We use '??' (OR) instead of '+' (PLUS).
+    int effectiveQty = quantity ?? state.pendingQuantity;
+
+    /// Safety: If for some reason pending is 0, force it to 1.
+    /// This is to ensure we never add 0 or negative
+    /// unless explicitly handling returns (which is advanced)
+    if (effectiveQty <= 0) effectiveQty = 1;
+
     final success = _checkoutService.addItemToCheckout(
       checkout: state.activeCheckout,
       item: item,
-      quantity: quantity,
+      quantity: effectiveQty,
     );
 
     if (success) {
-      // Find the index of the added/updated item
       final itemIndex = state.activeCheckout.items.indexWhere(
         (e) => e.itemId == item.key,
       );
 
-      // Force new reference by creating new CartState
+      // 2. Force new reference AND RESET pendingQuantity back to 1 immediately
+      // This is crucial. If we don't reset, the NEXT item will also use this quantity.
       state = CartState(
         activeCheckout: state.activeCheckout,
         heldCheckouts: state.heldCheckouts,
         selectedItemIndex: itemIndex,
         isProcessing: state.isProcessing,
+        pendingQuantity: 1, // <--- IMPORTANT: Reset to 1 after adding
+        isDefaultQuantity: true, // Reset to default state
       );
     }
 

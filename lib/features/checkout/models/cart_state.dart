@@ -5,12 +5,16 @@ class CartState {
   final List<Checkout> heldCheckouts;
   final int? selectedItemIndex;
   final bool isProcessing;
+  final int pendingQuantity; // Pending quantity for next item
+  final bool isDefaultQuantity; // True if pendingQuantity is still the default (1) and hasn't been typed yet
 
   const CartState({
     required this.activeCheckout,
     this.heldCheckouts = const [],
     this.selectedItemIndex,
     this.isProcessing = false,
+    this.pendingQuantity = 1,
+    this.isDefaultQuantity = true,
   });
 
   bool get isEmpty => activeCheckout.items.isEmpty;
@@ -31,6 +35,8 @@ class CartState {
     List<Checkout>? heldCheckouts,
     int? Function()? selectedItemIndex,
     bool? isProcessing,
+    int? pendingQuantity,
+    bool? isDefaultQuantity,
   }) {
     return CartState(
       activeCheckout: activeCheckout ?? this.activeCheckout,
@@ -39,6 +45,8 @@ class CartState {
           ? selectedItemIndex()
           : this.selectedItemIndex,
       isProcessing: isProcessing ?? this.isProcessing,
+      pendingQuantity: pendingQuantity ?? this.pendingQuantity,
+      isDefaultQuantity: isDefaultQuantity ?? this.isDefaultQuantity,
     );
   }
 }
