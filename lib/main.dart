@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'theme/app_theme.dart';
-import 'services/auth_service.dart';
-import 'services/hive_setup.dart';
-import 'pages/home_page.dart';
-import 'pages/login_page.dart';
+import 'core/theme/app_theme.dart';
+import 'core/database/hive_initializer.dart';
+import 'features/auth/data/datasources/auth_local_datasource.dart';
+import 'features/dashboard/presentation/pages/home_page.dart';
+import 'features/auth/presentation/pages/login_page.dart';
 
 void main() async {
-  // Ensure Flutter widgets are bound before running async code
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive
+  // Initialize Hive and open all boxes
   await setupHive();
 
-  // Decide initial route using Hive session
+  // Check authentication status
   final authService = AuthService();
   final bool isLoggedIn = authService.isLoggedIn();
 

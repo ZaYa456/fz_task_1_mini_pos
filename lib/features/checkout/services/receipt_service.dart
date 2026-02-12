@@ -1,5 +1,5 @@
-import '../models/checkout_model.dart';
-import '../models/payment_info.dart';
+import 'package:fz_task_1/features/checkout/domain/entities/checkout.dart';
+import 'package:fz_task_1/features/payments/domain/entities/payment_info.dart';
 
 class ReceiptData {
   final String storeName;
@@ -17,6 +17,7 @@ class ReceiptData {
   });
 }
 
+/// Infrastructure service for receipt generation and printing
 class ReceiptService {
   /// Generate receipt text
   String generateReceiptText(ReceiptData data) {
@@ -51,21 +52,21 @@ class ReceiptService {
 
     // Totals
     buffer.writeln(
-      'Subtotal:'.padRight(30) + '\$${checkout.totalAmount.toStringAsFixed(2)}',
+      '${'Subtotal:'.padRight(30)}\$${checkout.totalAmount.toStringAsFixed(2)}',
     );
 
     // Payment details
     if (payment.method == 'cash') {
       buffer.writeln(
-        'Cash:'.padRight(30) + '\$${payment.amountPaid.toStringAsFixed(2)}',
+        '${'Cash:'.padRight(30)}\$${payment.amountPaid.toStringAsFixed(2)}',
       );
       buffer.writeln(
-        'Change:'.padRight(30) + '\$${payment.change.toStringAsFixed(2)}',
+        '${'Change:'.padRight(30)}\$${payment.change.toStringAsFixed(2)}',
       );
     }
 
     buffer.writeln('=' * 40);
-    buffer.writeln('Payment: ${payment.method.toUpperCase()}');
+    buffer.writeln('Payment: ${payment.method}');
     buffer.writeln('=' * 40);
     buffer.writeln();
     buffer.writeln('Thank you for your business!');
