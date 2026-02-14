@@ -3,7 +3,7 @@ import 'package:hive/hive.dart';
 part 'user_model.g.dart'; // This file is generated automatically
 
 @HiveType(typeId: 0)
-class User extends HiveObject {
+class UserModel extends HiveObject {
   @HiveField(0)
   late String name;
 

@@ -1,98 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/app/di.dart';
+import 'package:fz_task_1/features/auth/presentation/state/auth_state.dart';
+import 'package:fz_task_1/features/auth/presentation/widgets/login_header.dart';
+import 'package:fz_task_1/features/auth/presentation/widgets/login_form.dart';
+import 'package:fz_task_1/features/dashboard/presentation/pages/home_page.dart';
 
-import '../../data/datasources/auth_local_datasource.dart';
-import '../../../dashboard/presentation/pages/home_page.dart';
-
-class LoginPage extends StatefulWidget {
+/// Login page with clean architecture and proper state management
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
-
-  bool _isPasswordVisible = false;
-  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _authService.ensureDefaultUser();
+    // Ensure default user exists
+    Future.microtask(() {
+      ref.read(authRepositoryProvider).ensureDefaultUser();
+    });
   }
 
-  Future<void> _handleLogin() async {
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handleLogin() {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    final success = _authService.login(
-      _usernameController.text.trim(),
-      _passwordController.text,
-    );
-
-    if (!mounted) return;
-
-    setState(() => _isLoading = false);
-
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Invalid credentials. Try admin / 1234"),
-        ),
-      );
-    }
+    ref.read(authNotifierProvider.notifier).login(
+          _usernameController.text,
+          _passwordController.text,
+        );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Listen to auth state changes
+    ref.listen<AuthState>(authNotifierProvider, (previous, next) {
+      if (next is AuthAuthenticated) {
+        // Navigate to home page on successful login
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      } else if (next is AuthError) {
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.message),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        // Clear error after showing
+        ref.read(authNotifierProvider.notifier).clearError();
+      }
+    });
+
+    final authState = ref.watch(authNotifierProvider);
+    final isLoading = authState is AuthLoading;
+
     return Scaffold(
       body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Shortcuts(
-              shortcuts: {
-                LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
-              },
-              child: Actions(
-                actions: {
-                  ActivateIntent: CallbackAction<ActivateIntent>(
-                    onInvoke: (_) => _handleLogin(),
-                  ),
-                },
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeader(context),
-                      const SizedBox(height: 32),
-                      _buildUsernameField(),
-                      const SizedBox(height: 16),
-                      _buildPasswordField(),
-                      const SizedBox(height: 24),
-                      _buildLoginButton(),
-                    ],
-                  ),
-                ),
-              ),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: _buildLoginCard(isLoading),
             ),
           ),
         ),
@@ -100,69 +86,44 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ---------- UI Components ----------
-
-  Widget _buildHeader(BuildContext context) {
-    return Column(
-      children: [
-        const Icon(Icons.computer, size: 64),
-        const SizedBox(height: 16),
-        Text(
-          "Desktop POS Login",
-          style: Theme.of(context).textTheme.headlineSmall,
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUsernameField() {
-    return TextFormField(
-      controller: _usernameController,
-      decoration: const InputDecoration(
-        labelText: "Username",
-        prefixIcon: Icon(Icons.person_outline),
-      ),
-      validator: (value) =>
-          value == null || value.isEmpty ? "Enter username" : null,
-    );
-  }
-
-  Widget _buildPasswordField() {
-    return TextFormField(
-      controller: _passwordController,
-      obscureText: !_isPasswordVisible,
-      decoration: InputDecoration(
-        labelText: "Password",
-        prefixIcon: const Icon(Icons.lock_outline),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+  Widget _buildLoginCard(bool isLoading) {
+    return Shortcuts(
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
+      },
+      child: Actions(
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              _handleLogin();
+              return null;
+            },
           ),
-          onPressed: () {
-            setState(() {
-              _isPasswordVisible = !_isPasswordVisible;
-            });
-          },
+        },
+        child: Card(
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const LoginHeader(),
+                const SizedBox(height: 32),
+                LoginForm(
+                  formKey: _formKey,
+                  usernameController: _usernameController,
+                  passwordController: _passwordController,
+                  onSubmit: _handleLogin,
+                  isLoading: isLoading,
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-      validator: (value) =>
-          value == null || value.isEmpty ? "Enter password" : null,
-    );
-  }
-
-  Widget _buildLoginButton() {
-    return SizedBox(
-      height: 50,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
-        child: _isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Text("Login"),
       ),
     );
   }

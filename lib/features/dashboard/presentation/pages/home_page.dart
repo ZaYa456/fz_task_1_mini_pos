@@ -1,74 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/app/di.dart';
+import 'package:fz_task_1/features/auth/presentation/pages/login_page.dart';
+import 'package:fz_task_1/features/bills/presentation/pages/bills_page.dart';
+import 'package:fz_task_1/features/checkout/presentation/pages/checkout_page.dart';
+import 'package:fz_task_1/features/dashboard/presentation/providers/navigation_provider.dart';
+import 'package:fz_task_1/features/dashboard/presentation/widgets/app_navigation_rail.dart';
+import 'package:fz_task_1/features/dashboard/presentation/widgets/dashboard_view.dart';
+import 'package:fz_task_1/features/items/presentation/pages/items_page.dart';
 
-import '../../../auth/data/datasources/auth_local_datasource.dart';
-import '../../../../core/database/hive_initializer.dart';
-import '../../../checkout/data/models/checkout_model.dart';
-import '../../../items/data/models/item_model.dart';
-
-import '../../../auth/presentation/pages/login_page.dart';
-import '../../../checkout/presentation/pages/checkout_page.dart';
-import '../../../items/presentation/pages/items_page.dart';
-import '../../../bills/presentation/pages/bills_page.dart';
-
-class HomePage extends StatefulWidget {
+/// Main home page with navigation and layout
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentSection = ref.watch(navigationProvider);
 
-class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
-  final authService = AuthService();
-
-  late final List<Widget> _pages;
-
-  @override
-  void initState() {
-    super.initState();
-    _pages = [
-      DashboardView(
-        onNewCheckout: () {
-          setState(() => _selectedIndex = 1); // Checkout
-        },
-      ),
-      const CheckoutPage(),
-      const ItemsPage(),
-      const BillsPage(),
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('POS Dashboard'),
-        actions: [
-          IconButton(
-            tooltip: 'Logout',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await authService.logout();
-              if (!context.mounted) return;
-
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                (_) => false,
-              );
-            },
-          ),
-        ],
-      ),
+      appBar: _buildAppBar(context, ref),
       body: Row(
         children: [
-          _buildNavigationRail(),
+          const AppNavigationRail(),
           const VerticalDivider(width: 1),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: _pages[_selectedIndex],
+              child: _getPageForSection(currentSection),
             ),
           ),
         ],
@@ -76,149 +34,63 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildNavigationRail() {
-    return NavigationRail(
-      selectedIndex: _selectedIndex,
-      labelType: NavigationRailLabelType.all,
-      onDestinationSelected: (index) {
-        setState(() => _selectedIndex = index);
-      },
-      destinations: const [
-        NavigationRailDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard),
-          label: Text('Dashboard'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.shopping_cart_outlined),
-          selectedIcon: Icon(Icons.shopping_cart),
-          label: Text('Checkout'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.inventory_2_outlined),
-          selectedIcon: Icon(Icons.inventory_2),
-          label: Text('Items'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.receipt_long_outlined),
-          selectedIcon: Icon(Icons.receipt_long),
-          label: Text('Bills'),
+  PreferredSizeWidget _buildAppBar(BuildContext context, WidgetRef ref) {
+    return AppBar(
+      title: const Text('POS Dashboard'),
+      actions: [
+        IconButton(
+          tooltip: 'Logout',
+          icon: const Icon(Icons.logout),
+          onPressed: () => _handleLogout(context, ref),
         ),
       ],
     );
   }
-}
 
-class DashboardView extends StatelessWidget {
-  final VoidCallback onNewCheckout;
-
-  const DashboardView({
-    super.key,
-    required this.onNewCheckout,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final itemBox = Hive.box<Item>(kItemBox);
-    final checkoutBox = Hive.box<Checkout>(kCheckoutBox);
-
-    final int itemCount = itemBox.length;
-    final int billCount = checkoutBox.length;
-
-    final double totalSales = checkoutBox.values.fold(
-      0.0,
-      (sum, bill) => sum + bill.totalAmount,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Today Overview',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            _StatCard(
-              title: 'Total Sales',
-              value: '\$${totalSales.toStringAsFixed(2)}',
-              icon: Icons.attach_money,
-            ),
-            _StatCard(
-              title: 'Bills',
-              value: billCount.toString(),
-              icon: Icons.receipt_long,
-            ),
-            _StatCard(
-              title: 'Items',
-              value: itemCount.toString(),
-              icon: Icons.inventory_2,
-            ),
-          ],
-        ),
-        const SizedBox(height: 32),
-        Text(
-          'Quick Actions',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.shopping_cart_checkout),
-          label: const Text('New Checkout'),
-          onPressed: onNewCheckout,
-        ),
-      ],
-    );
+  Widget _getPageForSection(DashboardSection section) {
+    switch (section) {
+      case DashboardSection.dashboard:
+        return const DashboardView();
+      case DashboardSection.checkout:
+        return const CheckoutPage();
+      case DashboardSection.items:
+        return const ItemsPage();
+      case DashboardSection.bills:
+        return const BillsPage();
+    }
   }
-}
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(icon, size: 32),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ],
-              ),
-            ],
+  Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {
+    // Show confirmation dialog
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
           ),
-        ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Logout'),
+          ),
+        ],
       ),
+    );
+
+    if (shouldLogout != true) return;
+
+    // Perform logout
+    await ref.read(authNotifierProvider.notifier).logout();
+
+    if (!context.mounted) return;
+
+    // Navigate to login page
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (_) => false,
     );
   }
 }

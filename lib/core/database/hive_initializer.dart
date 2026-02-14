@@ -13,6 +13,7 @@ const String kUserBox = 'user_box';
 const String kItemBox = 'item_box';
 const String kCheckoutBox = 'checkout_box';
 const String kSessionBox = 'session_box';
+const String kPreferencesBox = 'preferences';
 
 // ===============================
 // Session Keys
@@ -31,7 +32,7 @@ Future<void> setupHive() async {
 
   // 2️⃣ Register Generated Adapters (MODEL adapters, not domain entities)
   if (!Hive.isAdapterRegistered(0)) {
-    Hive.registerAdapter(UserAdapter());
+    Hive.registerAdapter(UserModelAdapter());
   }
 
   if (!Hive.isAdapterRegistered(1)) {
@@ -46,11 +47,13 @@ Future<void> setupHive() async {
     Hive.registerAdapter(CheckoutItemModelAdapter());
   }
 
-  // 3️⃣ Open Boxes (Store MODELS only)
-  await Hive.openBox<User>(kUserBox);
+  // Open Boxes (Store MODELS only)
+  await Hive.openBox<UserModel>(kUserBox);
   await Hive.openBox<ItemModel>(kItemBox);
   await Hive.openBox<CheckoutModel>(kCheckoutBox);
 
-  // 4️⃣ Session box (non-typed)
+  // Session box (non-typed)
   await Hive.openBox(kSessionBox);
+
+  await Hive.openBox(kPreferencesBox);
 }

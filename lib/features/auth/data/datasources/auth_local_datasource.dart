@@ -1,54 +1,85 @@
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 import 'package:hive/hive.dart';
-import '../models/user_model.dart';
-import '../../../../core/database/hive_initializer.dart';
+import 'package:fz_task_1/core/database/hive_initializer.dart';
+import 'package:fz_task_1/features/auth/data/models/user_model.dart';
 
-class AuthService {
-  final Box<User> _userBox = Hive.box<User>(kUserBox);
-  final Box _sessionBox = Hive.box(kSessionBox);
+/// Abstract interface for auth local data source
+abstract class AuthLocalDataSource {
+  bool isLoggedIn();
+  UserModel? getCurrentUser();
+  Future<UserModel?> login(String username, String password);
+  Future<void> logout();
+  Future<void> ensureDefaultUser();
+}
 
-  /// Ensure default admin exists
-  Future<void> ensureDefaultUser() async {
-    if (_userBox.isEmpty) {
-      final defaultUser = User()
-        ..name = "admin"
-        ..passwordHash = "1234" // TODO: hash in real apps
-        ..registeredDate = DateTime.now();
+/// Implementation of local authentication using Hive
+class AuthLocalDataSourceImpl implements AuthLocalDataSource {
+  final Box<UserModel> userBox;
+  final Box preferencesBox;
+  static const String _currentUserKey = 'current_user';
 
-      await _userBox.add(defaultUser);
-    }
+  AuthLocalDataSourceImpl({
+    required this.userBox,
+    required this.preferencesBox,
+  });
+
+  @override
+  bool isLoggedIn() {
+    final currentUsername = preferencesBox.get(_currentUserKey);
+    return currentUsername != null;
   }
 
-  /// Login user
-  bool login(String username, String password) {
+  @override
+  UserModel? getCurrentUser() {
+    final username = preferencesBox.get(_currentUserKey);
+    if (username == null) return null;
+
+    return userBox.values.firstWhere(
+      (user) => user.name == username,
+      orElse: () => throw Exception('User not found'),
+    );
+  }
+
+  @override
+  Future<UserModel?> login(String username, String password) async {
+    final hashedPassword = _hashPassword(password);
+
     try {
-      final user = _userBox.values.firstWhere(
-        (u) => u.name.toLowerCase() == username.toLowerCase(),
+      final user = userBox.values.firstWhere(
+        (user) => user.name == username && user.passwordHash == hashedPassword,
       );
 
-      if (user.passwordHash == password) {
-        _sessionBox.put(kIsLoggedInKey, true);
-        _sessionBox.put(kCurrentUserKey, user.name);
-        return true;
-      }
-    } catch (_) {
-      return false;
+      // Store current user
+      await preferencesBox.put(_currentUserKey, username);
+      return user;
+    } catch (e) {
+      return null;
     }
-    return false;
   }
 
-  /// Logout user
+  @override
   Future<void> logout() async {
-    await _sessionBox.put(kIsLoggedInKey, false);
-    await _sessionBox.delete(kCurrentUserKey);
+    await preferencesBox.delete(_currentUserKey);
   }
 
-  /// Check login state
-  bool isLoggedIn() {
-    return _sessionBox.get(kIsLoggedInKey, defaultValue: false);
+  @override
+  Future<void> ensureDefaultUser() async {
+    // Check if admin user exists
+    final adminExists = userBox.values.any((user) => user.name == 'admin');
+
+    if (!adminExists) {
+      final admin = UserModel()
+        ..name = 'admin'
+        ..passwordHash = _hashPassword('1234')
+        ..registeredDate = DateTime.now();
+
+      await userBox.add(admin);
+    }
   }
 
-  /// Get current logged-in username (optional helper)
-  String? currentUser() {
-    return _sessionBox.get(kCurrentUserKey);
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    return sha256.convert(bytes).toString();
   }
 }

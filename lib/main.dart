@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'core/theme/app_theme.dart';
 import 'core/database/hive_initializer.dart';
-import 'features/auth/data/datasources/auth_local_datasource.dart';
-import 'features/dashboard/presentation/pages/home_page.dart';
+import 'app/di.dart';
 import 'features/auth/presentation/pages/login_page.dart';
+import 'features/auth/presentation/state/auth_state.dart';
+import 'features/dashboard/presentation/pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,30 +13,55 @@ void main() async {
   // Initialize Hive and open all boxes
   await setupHive();
 
-  // Check authentication status
-  final authService = AuthService();
-  final bool isLoggedIn = authService.isLoggedIn();
-
   runApp(
-    ProviderScope(
-      child: MainApp(
-        startPage: isLoggedIn ? const HomePage() : const LoginPage(),
-      ),
+    const ProviderScope(
+      child: MainApp(),
     ),
   );
 }
 
 class MainApp extends StatelessWidget {
-  const MainApp({super.key, required this.startPage});
-
-  final Widget startPage;
+  const MainApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: startPage,
+      home: const AuthStateHandler(), // Smart routing based on auth state
+    );
+  }
+}
+
+/// Handles routing based on authentication state
+class AuthStateHandler extends ConsumerWidget {
+  const AuthStateHandler({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+
+    // Show appropriate screen based on auth state
+    return switch (authState) {
+      AuthInitial() => const _LoadingScreen(),
+      AuthAuthenticated() => const HomePage(),
+      AuthUnauthenticated() => const LoginPage(),
+      AuthLoading() => const _LoadingScreen(),
+      AuthError() => const LoginPage(),
+    };
+  }
+}
+
+/// Simple loading screen shown during auth check
+class _LoadingScreen extends StatelessWidget {
+  const _LoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 }
