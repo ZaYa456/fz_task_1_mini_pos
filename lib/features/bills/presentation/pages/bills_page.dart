@@ -1,201 +1,115 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/app/di.dart';
+import 'package:fz_task_1/features/bills/domain/entities/sort_option.dart';
+import 'package:fz_task_1/features/bills/presentation/widgets/bill_details_panel.dart';
+import 'package:fz_task_1/features/bills/presentation/widgets/bills_list_panel.dart';
+import 'package:fz_task_1/features/bills/presentation/widgets/empty_bills_state.dart';
 
-import '../../../checkout/data/models/checkout_model.dart';
-import '../../../../core/database/hive_initializer.dart';
-
-enum SortOption { dateDesc, dateAsc, totalDesc, totalAsc }
-
-class BillsPage extends StatefulWidget {
+/// Bills page showing list of completed transactions
+class BillsPage extends ConsumerWidget {
   const BillsPage({super.key});
 
   @override
-  State<BillsPage> createState() => _BillsPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final billsState = ref.watch(billsNotifierProvider);
 
-class _BillsPageState extends State<BillsPage> {
-  late Box<Checkout> _checkoutBox;
-  Checkout? _selectedBill;
-
-  SortOption _currentSort = SortOption.dateDesc;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkoutBox = Hive.box<Checkout>(kCheckoutBox);
-
-    if (_checkoutBox.isNotEmpty) {
-      _selectedBill = _checkoutBox.values.toList().last;
-    }
-  }
-
-  List<Checkout> _getSortedBills() {
-    final bills = _checkoutBox.values.toList();
-
-    bills.sort((a, b) {
-      switch (_currentSort) {
-        case SortOption.dateAsc:
-          return a.date.compareTo(b.date);
-        case SortOption.dateDesc:
-          return b.date.compareTo(a.date);
-        case SortOption.totalAsc:
-          return a.totalAmount.compareTo(b.totalAmount);
-        case SortOption.totalDesc:
-          return b.totalAmount.compareTo(a.totalAmount);
+    // Listen for errors
+    ref.listen(billsNotifierProvider, (previous, next) {
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.error!),
+            backgroundColor: Colors.red,
+          ),
+        );
+        ref.read(billsNotifierProvider.notifier).clearError();
       }
     });
 
-    return bills;
-  }
-
-  String _getSortLabel(SortOption option) {
-    switch (option) {
-      case SortOption.dateAsc:
-        return "Date ↑";
-      case SortOption.dateDesc:
-        return "Date ↓";
-      case SortOption.totalAsc:
-        return "Total ↑";
-      case SortOption.totalDesc:
-        return "Total ↓";
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Bills"),
+        title: const Text('Bills'),
         actions: [
-          // Sort Dropdown
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DropdownButton<SortOption>(
-              value: _currentSort,
-              dropdownColor: Theme.of(context).colorScheme.surface,
-              underline: const SizedBox(),
-              items: SortOption.values.map((option) {
-                return DropdownMenuItem(
-                  value: option,
-                  child: Text(_getSortLabel(option)),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _currentSort = value);
-                }
-              },
-            ),
-          ),
+          _buildSortDropdown(context, ref, billsState.sortOption),
+          const SizedBox(width: 8),
         ],
       ),
-      body: ValueListenableBuilder<Box<Checkout>>(
-        valueListenable: _checkoutBox.listenable(),
-        builder: (context, box, _) {
-          if (box.isEmpty) {
-            return const Center(child: Text("No bills found"));
-          }
+      body: billsState.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : !billsState.hasBills
+              ? const EmptyBillsState()
+              : _buildBillsContent(context, ref, billsState),
+    );
+  }
 
-          final bills = _getSortedBills();
-
-          return Row(
-            children: [
-              // Left: Bills List
-              Expanded(
-                flex: 2,
-                child: Container(
-                  color: Theme.of(context).colorScheme.surface,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemCount: bills.length,
-                    itemBuilder: (context, index) {
-                      final bill = bills[index];
-                      final isSelected = _selectedBill == bill;
-
-                      return Card(
-                        color: isSelected
-                            ? Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withOpacity(0.1)
-                            : null,
-                        child: ListTile(
-                          title: Text("Bill #${bill.id}"),
-                          subtitle:
-                              Text("${bill.date.toLocal()}".split('.')[0]),
-                          trailing:
-                              Text("\$${bill.totalAmount.toStringAsFixed(2)}"),
-                          selected: isSelected,
-                          onTap: () => setState(() => _selectedBill = bill),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              // Divider
-              VerticalDivider(width: 1, color: Colors.grey[300]),
-
-              // Right: Selected Bill Details
-              Expanded(
-                flex: 3,
-                child: _selectedBill == null
-                    ? const Center(child: Text("Select a bill to see details"))
-                    : Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Bill #${_selectedBill!.id}",
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text("Date: ${_selectedBill!.date.toLocal()}"
-                                .split('.')[0]),
-                            const SizedBox(height: 16),
-                            const Text(
-                              "Items:",
-                              style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Expanded(
-                              child: ListView.separated(
-                                itemCount: _selectedBill!.items.length,
-                                separatorBuilder: (_, __) => const Divider(),
-                                itemBuilder: (context, index) {
-                                  final item = _selectedBill!.items[index];
-                                  return ListTile(
-                                    title: Text(item.itemName),
-                                    trailing: Text(
-                                        "${item.quantity} x \$${item.priceAtSale.toStringAsFixed(2)}"),
-                                  );
-                                },
-                              ),
-                            ),
-                            const Divider(),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                "Total: \$${_selectedBill!.totalAmount.toStringAsFixed(2)}",
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-              ),
-            ],
+  Widget _buildSortDropdown(
+    BuildContext context,
+    WidgetRef ref,
+    BillsSortOption currentSort,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: DropdownButton<BillsSortOption>(
+        value: currentSort,
+        dropdownColor: Theme.of(context).colorScheme.surface,
+        underline: const SizedBox(),
+        icon: const Icon(Icons.sort),
+        items: BillsSortOption.values.map((option) {
+          return DropdownMenuItem(
+            value: option,
+            child: Text(option.label),
           );
+        }).toList(),
+        onChanged: (value) {
+          if (value != null) {
+            ref.read(billsNotifierProvider.notifier).changeSortOption(value);
+          }
         },
       ),
+    );
+  }
+
+  Widget _buildBillsContent(
+    BuildContext context,
+    WidgetRef ref,
+    billsState,
+  ) {
+    final sortedBills = billsState.sortedBills;
+    final selectedBill = billsState.selectedBill;
+
+    return Row(
+      children: [
+        // Left: Bills List
+        Expanded(
+          flex: 2,
+          child: BillsListPanel(
+            bills: sortedBills,
+            selectedBill: selectedBill,
+            onBillSelected: (bill) {
+              ref.read(billsNotifierProvider.notifier).selectBill(bill);
+            },
+          ),
+        ),
+
+        // Divider
+        VerticalDivider(width: 1, color: Colors.grey[300]),
+
+        // Right: Bill Details
+        Expanded(
+          flex: 3,
+          child: BillDetailsPanel(
+            bill: selectedBill,
+            onDelete: selectedBill != null
+                ? () {
+                    ref
+                        .read(billsNotifierProvider.notifier)
+                        .deleteBill(selectedBill.id);
+                  }
+                : null,
+          ),
+        ),
+      ],
     );
   }
 }

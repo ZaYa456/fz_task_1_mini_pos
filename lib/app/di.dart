@@ -36,6 +36,12 @@ import 'package:fz_task_1/features/items/domain/usecases/delete_item.dart';
 import 'package:fz_task_1/features/items/domain/usecases/get_items.dart';
 import 'package:fz_task_1/features/items/domain/usecases/update_item.dart';
 import 'package:fz_task_1/features/items/presentation/providers/items_notifier.dart';
+import 'package:fz_task_1/features/bills/data/repositories/bills_repository_impl.dart';
+import 'package:fz_task_1/features/bills/domain/repositories/bills_repository.dart';
+import 'package:fz_task_1/features/bills/domain/usecases/delete_bill.dart';
+import 'package:fz_task_1/features/bills/domain/usecases/get_all_bills.dart';
+import 'package:fz_task_1/features/bills/presentation/providers/bills_provider.dart';
+import 'package:fz_task_1/features/bills/presentation/state/bills_state.dart';
 import 'package:hive/hive.dart';
 
 // ============================================================================
@@ -234,4 +240,32 @@ final deleteHeldCheckoutProvider = Provider<DeleteHeldCheckout>((ref) {
 // Services
 final receiptServiceProvider = Provider<ReceiptService>((ref) {
   return ReceiptService();
+});
+
+// ============================================================================
+// BILLS FEATURE
+// ============================================================================
+
+// Repository Provider
+final billsRepositoryProvider = Provider<BillsRepository>((ref) {
+  final checkoutBox = ref.watch(checkoutBoxProvider);
+  return BillsRepositoryImpl(checkoutBox);
+});
+
+// Use Cases Providers
+final getAllBillsProvider = Provider<GetAllBills>((ref) {
+  return GetAllBills(ref.watch(billsRepositoryProvider));
+});
+
+final deleteBillProvider = Provider<DeleteBill>((ref) {
+  return DeleteBill(ref.watch(billsRepositoryProvider));
+});
+
+// Bills State Notifier Provider
+final billsNotifierProvider =
+    StateNotifierProvider<BillsNotifier, BillsState>((ref) {
+  return BillsNotifier(
+    getAllBillsUseCase: ref.watch(getAllBillsProvider),
+    deleteBillUseCase: ref.watch(deleteBillProvider),
+  );
 });
