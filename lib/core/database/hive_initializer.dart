@@ -49,6 +49,8 @@ Future<void> setupHive() async {
 
   // Open Boxes (Store MODELS only)
   await Hive.openBox<UserModel>(kUserBox);
+
+
   await Hive.openBox<ItemModel>(kItemBox);
   await Hive.openBox<CheckoutModel>(kCheckoutBox);
 

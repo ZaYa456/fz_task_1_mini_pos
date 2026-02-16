@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fz_task_1/app/di.dart';
 import 'package:fz_task_1/features/items/domain/entities/item.dart';
 import 'package:fz_task_1/features/items/presentation/providers/items_notifier.dart';
 import 'package:fz_task_1/features/items/presentation/widgets/item_dialog.dart';

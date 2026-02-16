@@ -7,7 +7,7 @@ class DeleteBill {
   DeleteBill(this.repository);
 
   /// Delete a bill by its ID
-  Future<void> call(String billId) async {
+  Future<void> call(int billId) async {
     await repository.deleteBill(billId);
   }
 }

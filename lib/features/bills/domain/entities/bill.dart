@@ -1,6 +1,6 @@
 /// Domain entity representing a completed bill/checkout
 class Bill {
-  final String id;
+  final int id;
   final DateTime date;
   final double totalAmount;
   final List<BillItem> items;
@@ -13,7 +13,7 @@ class Bill {
   });
 
   Bill copyWith({
-    String? id,
+    int? id,
     DateTime? date,
     double? totalAmount,
     List<BillItem>? items,

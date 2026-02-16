@@ -43,7 +43,7 @@ class AuthRepositoryImpl implements AuthRepository {
   /// Convert data model to domain entity
   User _userModelToEntity(UserModel model) {
     return User(
-      id: model.key.toString(),
+      id: model.key,
       username: model.name,
       name: model.name,
       registeredDate: model.registeredDate,

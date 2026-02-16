@@ -1,7 +1,6 @@
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'package:hive/hive.dart';
-import 'package:fz_task_1/core/database/hive_initializer.dart';
 import 'package:fz_task_1/features/auth/data/models/user_model.dart';
 
 /// Abstract interface for auth local data source
@@ -30,15 +29,47 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     return currentUsername != null;
   }
 
+  // @override
+  // UserModel? getCurrentUser() {
+  //   final username = preferencesBox.get(_currentUserKey);
+  //   if (username == null) return null;
+
+  //   return userBox.values.firstWhere(
+  //     (user) => user.name == username,
+  //     orElse: () => throw Exception('User not found'),
+  //   );
+  // }
+
+  // @override
+  // Future<UserModel?> login(String username, String password) async {
+  //   final hashedPassword = _hashPassword(password);
+
+  //   try {
+  //     final user = userBox.values.firstWhere(
+  //       (user) => user.name == username && user.passwordHash == hashedPassword,
+  //     );
+
+  //     // Store current user
+  //     await preferencesBox.put(_currentUserKey, username);
+  //     return user;
+  //   } catch (e) {
+  //     return null;
+  //   }
+  // }
+
   @override
   UserModel? getCurrentUser() {
     final username = preferencesBox.get(_currentUserKey);
     if (username == null) return null;
 
-    return userBox.values.firstWhere(
-      (user) => user.name == username,
-      orElse: () => throw Exception('User not found'),
-    );
+    // Use cast to avoid type errors and return null instead of throwing
+    try {
+      return userBox.values.firstWhere(
+        (user) => user.name == username,
+      );
+    } catch (_) {
+      return null; // Return null so the app just stays at login instead of crashing
+    }
   }
 
   @override
@@ -50,8 +81,12 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
         (user) => user.name == username && user.passwordHash == hashedPassword,
       );
 
-      // Store current user
+      // 1. Put the data
       await preferencesBox.put(_currentUserKey, username);
+
+      // 2. FORCE the write to disk so it's ready for the next screen
+      await preferencesBox.flush();
+
       return user;
     } catch (e) {
       return null;

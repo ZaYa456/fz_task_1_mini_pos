@@ -1,7 +1,7 @@
 /// Domain entity representing a user in the system.
 /// This is separate from the data model to maintain clean architecture.
 class User {
-  final String id;
+  final int id;
   final String username;
   final String name;
   final DateTime registeredDate;

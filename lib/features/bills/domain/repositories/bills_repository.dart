@@ -6,10 +6,10 @@ abstract class BillsRepository {
   List<Bill> getAllBills();
 
   /// Get a specific bill by ID
-  Bill? getBillById(String id);
+  Bill? getBillById(int id);
 
   /// Delete a bill by ID
-  Future<void> deleteBill(String id);
+  Future<void> deleteBill(int id);
 
   /// Stream of bills for real-time updates
   Stream<List<Bill>> watchBills();

@@ -15,7 +15,7 @@ class BillsRepositoryImpl implements BillsRepository {
   }
 
   @override
-  Bill? getBillById(String id) {
+  Bill? getBillById(int id) {
     try {
       final checkout = checkoutBox.values.firstWhere(
         (checkout) => checkout.id == id,
@@ -27,7 +27,7 @@ class BillsRepositoryImpl implements BillsRepository {
   }
 
   @override
-  Future<void> deleteBill(String id) async {
+  Future<void> deleteBill(int id) async {
     final checkout = checkoutBox.values.firstWhere(
       (checkout) => checkout.id == id,
     );
@@ -46,7 +46,7 @@ class BillsRepositoryImpl implements BillsRepository {
   /// Convert CheckoutModel to Bill entity
   Bill _checkoutModelToBill(CheckoutModel checkout) {
     return Bill(
-      id: checkout.id.toString(),
+      id: checkout.id,
       date: checkout.date,
       totalAmount: checkout.totalAmount,
       items: checkout.items.map((item) {

@@ -114,27 +114,3 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
     };
   }
 }
-
-/// ----- Providers ----- ///
-final getItemsProvider = Provider<GetItems>((ref) {
-  throw UnimplementedError('Provide GetItems in di.dart');
-});
-final addItemProvider = Provider<AddItem>((ref) {
-  throw UnimplementedError('Provide AddItem in di.dart');
-});
-final updateItemProvider = Provider<UpdateItem>((ref) {
-  throw UnimplementedError('Provide UpdateItem in di.dart');
-});
-final deleteItemProvider = Provider<DeleteItem>((ref) {
-  throw UnimplementedError('Provide DeleteItem in di.dart');
-});
-
-final itemsNotifierProvider =
-    StateNotifierProvider<ItemsNotifier, ItemsState>((ref) {
-  return ItemsNotifier(
-    getItems: ref.watch(getItemsProvider),
-    addItem: ref.watch(addItemProvider),
-    updateItem: ref.watch(updateItemProvider),
-    deleteItem: ref.watch(deleteItemProvider),
-  );
-});

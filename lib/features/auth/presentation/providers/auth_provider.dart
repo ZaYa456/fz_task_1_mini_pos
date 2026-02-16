@@ -15,12 +15,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required this.logoutUseCase,
     required this.getCurrentUserUseCase,
   }) : super(const AuthInitial()) {
-    _checkAuthStatus();
+    Future.microtask(_checkAuthStatus);
   }
 
   /// Check if user is already logged in
-  void _checkAuthStatus() {
+  Future<void> _checkAuthStatus() async {
+    state = const AuthLoading();
+
     final user = getCurrentUserUseCase();
+
     if (user != null) {
       state = AuthAuthenticated(user);
     } else {

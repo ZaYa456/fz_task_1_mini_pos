@@ -51,7 +51,7 @@ class BillsNotifier extends StateNotifier<BillsState> {
   }
 
   /// Delete a bill
-  Future<void> deleteBill(String billId) async {
+  Future<void> deleteBill(int billId) async {
     try {
       await deleteBillUseCase(billId);
 
