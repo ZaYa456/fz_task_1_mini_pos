@@ -9,7 +9,7 @@ import '../models/checkout_model.dart';
 class CheckoutRepositoryImpl implements ICheckoutRepository {
   final Box<CheckoutModel> _checkoutBox;
 
-  // Removed _itemBox from here. 
+  // Removed _itemBox from here.
   // Checkout repo should only care about Checkout data.
   CheckoutRepositoryImpl(this._checkoutBox);
 
@@ -19,24 +19,38 @@ class CheckoutRepositoryImpl implements ICheckoutRepository {
 
   @override
   Future<Checkout> getOrCreateActiveCheckout() async {
-    try {
-      // Optimized: cleaner syntax to find the first open checkout
-      final activeModel = _checkoutBox.values.firstWhere(
-        (model) => model.status == 'open',
-      );
-      return activeModel.toEntity();
-    } catch (_) {
-      // Create new one if none found
-      final newCheckout = CheckoutModel()
-        ..id = DateTime.now().millisecondsSinceEpoch
-        ..date = DateTime.now()
-        ..items = []
-        ..totalAmount = 0
-        ..status = 'open';
+    // Try to find the currently open checkout
+    final openCheckouts =
+        _checkoutBox.values.where((model) => model.status == 'open').toList();
 
-      await _checkoutBox.add(newCheckout);
-      return newCheckout.toEntity();
+    if (openCheckouts.isNotEmpty) {
+      return openCheckouts.first.toEntity();
     }
+
+    // If no open checkout, recall the most recent held checkout
+    final heldCheckouts =
+        _checkoutBox.values.where((model) => model.status == 'held').toList();
+
+    if (heldCheckouts.isNotEmpty) {
+      final lastHeldCheckout = heldCheckouts.last;
+      lastHeldCheckout.status = 'open';
+      final key = _findCheckoutKeyById(lastHeldCheckout.id);
+      if (key != null) {
+        await _checkoutBox.put(key, lastHeldCheckout);
+      }
+      return lastHeldCheckout.toEntity();
+    }
+
+    // Otherwise, create a fresh checkout
+    final newCheckout = CheckoutModel()
+      ..id = DateTime.now().millisecondsSinceEpoch
+      ..date = DateTime.now()
+      ..items = []
+      ..totalAmount = 0
+      ..status = 'open';
+
+    await _checkoutBox.add(newCheckout);
+    return newCheckout.toEntity();
   }
 
   @override
@@ -109,9 +123,11 @@ extension CheckoutModelExtensions on CheckoutModel {
     return CheckoutModel()
       ..id = entity.id
       ..date = entity.date
-      ..items = entity.items.map((e) => CheckoutItemModel.fromEntity(e)).toList()
+      ..items =
+          entity.items.map((e) => CheckoutItemModel.fromEntity(e)).toList()
       ..totalAmount = entity.totalAmount
-      ..status = entity.status.name; // Uses the enum name directly (e.g., "open")
+      ..status =
+          entity.status.name; // Uses the enum name directly (e.g., "open")
   }
 }
 

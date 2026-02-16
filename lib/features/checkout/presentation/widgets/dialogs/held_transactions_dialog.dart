@@ -57,11 +57,11 @@ class HeldTransactionsDialog extends ConsumerWidget {
                   onPressed: () => _confirmDelete(context, ref, index),
                 ),
                 onTap: () async {
+                  // Don't manually pop - let the listener handle it
+                  // This avoids double-pop and rendering issues
                   await ref
                       .read(checkoutProvider.notifier)
                       .recallTransaction(index);
-
-                  Navigator.of(context).pop();
                 },
               ),
             );

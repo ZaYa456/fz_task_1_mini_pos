@@ -39,6 +39,13 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkoutScopeNode.requestFocus(_rootFocusNode);
     });
+
+    // Optional: Refresh checkout state every time the page opens
+    // Ensures held transactions and active checkout are up-to-date,
+    // preventing stale data and the black screen issue when recalling a transaction
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(checkoutProvider.notifier).loadInitialState();
+    });
   }
 
   @override
@@ -63,19 +70,22 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
     ref.listen(checkoutProvider, (previous, next) {
       if (previous == null) return;
 
+      // Check recall first - if it was recalled, don't show deletion message
+      if (next.transactionJustRecalled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Transaction recalled'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        return; // Exit early to avoid showing both messages
+      }
+
+      // Only show deletion if it's actually a deletion, not a recall
       if (previous.heldCheckouts.length > next.heldCheckouts.length) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Transaction deleted'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-
-      if (previous.activeCheckout.id != next.activeCheckout.id) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Transaction recalled'),
             duration: Duration(seconds: 1),
           ),
         );

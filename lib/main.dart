@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 import 'core/theme/app_theme.dart';
 import 'core/database/hive_initializer.dart';
 import 'app/di.dart';
@@ -20,9 +21,14 @@ void main() async {
   );
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
 
+  @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -30,6 +36,13 @@ class MainApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       home: const AuthStateHandler(), // Smart routing based on auth state
     );
+  }
+
+  @override
+  void dispose() {
+    final sessionBox = Hive.box(kSessionBox);
+    sessionBox.put(kGracefulShutdownKey, true);
+    super.dispose();
   }
 }
 

@@ -12,11 +12,11 @@ class CheckoutNotifier extends StateNotifier<CartState> {
   final Ref _ref;
 
   CheckoutNotifier(this._ref) : super(CartState.initial()) {
-    _loadInitialState();
+    loadInitialState();
   }
 
   /// Load initial checkout state
-  Future<void> _loadInitialState() async {
+  Future<void> loadInitialState() async {
     try {
       final getActiveCheckout = _ref.read(getActiveCheckoutProvider);
       final getHeldCheckouts = _ref.read(getHeldCheckoutsProvider);
@@ -31,6 +31,8 @@ class CheckoutNotifier extends StateNotifier<CartState> {
     } catch (e) {
       // Handle initialization error
       state = CartState.initial();
+      // print a message
+      print('Error loading initial checkout state: ${e.toString()}');
     }
   }
 
@@ -128,6 +130,7 @@ class CheckoutNotifier extends StateNotifier<CartState> {
       return true;
     } catch (e) {
       // Stock validation or other errors
+      print('Error adding item to cart: ${e.toString()}');
       return false;
     }
   }
@@ -149,6 +152,7 @@ class CheckoutNotifier extends StateNotifier<CartState> {
       );
     } catch (e) {
       // Handle error (item not found, etc.)
+      print('Error removing item from cart: ${e.toString()}');
     }
   }
 
@@ -182,6 +186,7 @@ class CheckoutNotifier extends StateNotifier<CartState> {
 
       return true;
     } catch (e) {
+      print('Error setting item quantity: ${e.toString()}');
       return false;
     }
   }
@@ -214,6 +219,7 @@ class CheckoutNotifier extends StateNotifier<CartState> {
       );
     } catch (e) {
       // Handle error
+      print('Error removing checkout item: ${e.toString()}');
     }
   }
 
@@ -287,21 +293,32 @@ class CheckoutNotifier extends StateNotifier<CartState> {
     try {
       final holdCheckout = _ref.read(holdCheckoutProvider);
 
-      final newActiveCheckout = await holdCheckout.execute(
+      // Execute the hold
+      final heldModel = await holdCheckout.execute(
         checkoutToHold: state.activeCheckout,
       );
 
-      final updatedHeldCheckouts = [
-        ...state.heldCheckouts,
-        state.activeCheckout,
-      ];
+      // Update held checkouts: add the held checkout (with updated status)
+      final updatedHeldCheckouts = [...state.heldCheckouts, heldModel];
+
+      // Create a fresh new active checkout directly (not via getOrCreateActiveCheckout to avoid auto-recall)
+      final newActiveCheckout = Checkout(
+        id: DateTime.now().millisecondsSinceEpoch,
+        date: DateTime.now(),
+        items: [],
+      );
 
       state = CartState(
         activeCheckout: newActiveCheckout,
         heldCheckouts: updatedHeldCheckouts,
+        selectedItemIndex: null, // Reset selection
+        pendingQuantity: 1, // Reset quantity input
+        isDefaultQuantity: true, // Reset to default
       );
     } catch (e) {
-      // Handle error
+      // Optional: log error
+      print('Error holding transaction: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -311,15 +328,27 @@ class CheckoutNotifier extends StateNotifier<CartState> {
 
     try {
       final heldCheckout = state.heldCheckouts[index];
-      await _ref.read(recallCheckoutProvider).execute(
+
+      // Recall the held checkout
+      final recalledCheckout = await _ref.read(recallCheckoutProvider).execute(
             heldCheckout: heldCheckout,
-            currentCheckout: state.isEmpty ? null : state.activeCheckout,
+            currentCheckout: state.activeCheckout,
           );
 
-      // Refresh everything from the source of truth
-      await _loadInitialState();
+      // Remove recalled checkout from held checkouts
+      final updatedHeldCheckouts = List<Checkout>.from(state.heldCheckouts)
+        ..removeAt(index);
+
+      // Set the recalled checkout as active
+      state = CartState(
+        activeCheckout: recalledCheckout,
+        heldCheckouts: updatedHeldCheckouts,
+        selectedItemIndex: null, // Reset selection after recalling
+        transactionJustRecalled: true, // Signal that a recall happened
+      );
     } catch (e) {
-      // Handle error
+      print('Error recalling transaction: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -344,6 +373,8 @@ class CheckoutNotifier extends StateNotifier<CartState> {
       );
     } catch (e) {
       // Handle error
+      print('Error deleting held transaction: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -363,6 +394,7 @@ class CheckoutNotifier extends StateNotifier<CartState> {
       );
     } catch (e) {
       // Handle error
+      print('Error clearing cart: ${e.toString()}');
     }
   }
 
@@ -401,6 +433,8 @@ class CheckoutNotifier extends StateNotifier<CartState> {
       state = state.copyWith(heldCheckouts: heldCheckouts);
     } catch (e) {
       // Handle error
+      print('Error reloading held transactions: ${e.toString()}');
+      rethrow;
     }
   }
 }

@@ -3,6 +3,7 @@ import '../../domain/entities/checkout.dart';
 class CartState {
   final Checkout activeCheckout;
   final List<Checkout> heldCheckouts;
+  final bool transactionJustRecalled; // Resets after one frame
   final int? selectedItemIndex;
   final bool isProcessing;
   final int pendingQuantity;
@@ -11,6 +12,7 @@ class CartState {
   const CartState({
     required this.activeCheckout,
     this.heldCheckouts = const [],
+    this.transactionJustRecalled = false,
     this.selectedItemIndex,
     this.isProcessing = false,
     this.pendingQuantity = 1,
@@ -26,6 +28,8 @@ class CartState {
         items: [],
       ),
       heldCheckouts: [],
+      transactionJustRecalled: false,
+      selectedItemIndex: null,
     );
   }
 
@@ -38,6 +42,7 @@ class CartState {
   CartState copyWith({
     Checkout? activeCheckout,
     List<Checkout>? heldCheckouts,
+    bool? transactionJustRecalled,
     int? selectedItemIndex,
     bool? isProcessing,
     int? pendingQuantity,
@@ -46,6 +51,7 @@ class CartState {
     return CartState(
       activeCheckout: activeCheckout ?? this.activeCheckout,
       heldCheckouts: heldCheckouts ?? this.heldCheckouts,
+      transactionJustRecalled: transactionJustRecalled ?? false, // Auto-reset
       selectedItemIndex: selectedItemIndex ?? this.selectedItemIndex,
       isProcessing: isProcessing ?? this.isProcessing,
       pendingQuantity: pendingQuantity ?? this.pendingQuantity,
